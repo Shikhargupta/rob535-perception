@@ -66,7 +66,6 @@ img = plt.imread(snapshot)
 
 xyz = np.fromfile(snapshot.replace('_image.jpg', '_cloud.bin'), dtype=np.float32)
 xyz = xyz.reshape([3, -1])
-
 proj = np.fromfile(snapshot.replace('_image.jpg', '_proj.bin'), dtype=np.float32)
 proj.resize([3, 4])
 
@@ -114,21 +113,32 @@ for k, b in enumerate(bbox):
     vert_2D = vert_2D / vert_2D[2, :]
 
     clr = colors[np.mod(k, len(colors))]
+
+    bbox2Dx = []
+    bbox2Dy = []
     for e in edges.T:
-        ax1.plot(vert_2D[0, e], vert_2D[1, e], color=clr)
-        ax2.plot(vert_3D[0, e], vert_3D[1, e], vert_3D[2, e], color=clr)
+        # ax1.plot(vert_2D[0, e], vert_2D[1, e], color=clr)
+        bbox2Dx.append(vert_2D[0,e][0])
+        bbox2Dx.append(vert_2D[0,e][1])
+        bbox2Dy.append(vert_2D[1,e][0])
+        bbox2Dy.append(vert_2D[1,e][1])
 
-    c = classes[int(b[9])]
-    ignore_in_eval = bool(b[10])
-    if ignore_in_eval:
-        ax2.text(t[0], t[1], t[2], c, color='r')
-    else:
-        ax2.text(t[0], t[1], t[2], c)
 
-ax2.auto_scale_xyz([-40, 40], [-40, 40], [0, 80])
-ax2.view_init(elev=-30, azim=-90)
+    xmin,xmax = int(min(bbox2Dx)), int(max(bbox2Dx))
+    ymin,ymax = int(min(bbox2Dy)), int(max(bbox2Dy))
 
-for e in np.identity(3):
-    ax2.plot([0, e[0]], [0, e[1]], [0, e[2]], color=e)
 
+    ymin = max(ymin,0)
+    ymax = min(ymax,img.shape[0])
+    xmin = max(xmin,0)
+    xmax = min(xmax,img.shape[1])
+
+    ax1.plot([xmin, xmax],[ymin, ymin],color='red')
+
+    ax1.plot([xmax, xmax],[ymin, ymax],color='red')
+
+    ax1.plot([xmin, xmax],[ymax, ymax],color='red')
+
+    ax1.plot([xmin, xmin],[ymin, ymax],color='red')
 plt.show()
+
