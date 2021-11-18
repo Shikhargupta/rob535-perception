@@ -3,9 +3,9 @@ import cv2
 import json
 import torch
 import pathlib
+from glob import glob
 import numpy as np
 from typing import List, Dict
-from torchvision.ops import box_convert
 
 classes = np.loadtxt('classes.csv', skiprows=1, dtype=str, delimiter=',')
 labels = classes[:, 2].astype(np.uint8)
@@ -24,8 +24,7 @@ def xywh_to_xyxy(boxes):
 
 def rot(n):
     n = np.asarray(n).flatten()
-    assert(n.size == 3)
-
+    assert n.shape == (3,)
     theta = np.linalg.norm(n)
     if theta:
         n /= theta
@@ -107,9 +106,9 @@ class PrepareDataset(torch.utils.data.Dataset):
 
         # Convert to tensor
         x = torch.from_numpy(x).type(torch.float32)
-        target = {key: torch.from_numpy(value) for key, value in target.items()}
+        target['labels'] = torch.from_numpy(target['labels']).type(torch.uint8)
 
-        return {'x': x, 'y': target, 'x_name': self.inputs[idx].name, 'y_name': self.targets[idx].name}
+        return {'x': x, 'y': target, 'x_name': self.inputs[idx], 'y_name': self.targets[idx]}
 
 
     def get_bb(self,path,x):
@@ -117,8 +116,7 @@ class PrepareDataset(torch.utils.data.Dataset):
         proj = np.fromfile(path.replace('_bbox.bin', '_proj.bin'), dtype=np.float32)
         proj.resize([3, 4])
 
-        b = bbox.reshape([-1, 11])
-
+        b = bbox.reshape([-1, 11])[0]
         R = rot(b[0:3])
         t = b[3:6]
 
