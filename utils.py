@@ -3,10 +3,15 @@ import cv2
 import json
 import torch
 import pathlib
-from glob import glob
 import numpy as np
+from glob import glob
+from skimage import transform as sktsf
+from torchvision import transforms as tvtsf
 from typing import List, Dict
 
+
+min_size = 600
+max_size = 1000
 classes = np.loadtxt('classes.csv', skiprows=1, dtype=str, delimiter=',')
 labels = classes[:, 2].astype(np.uint8)
 
@@ -63,6 +68,97 @@ def get_bbox(p0, p1):
 
     return v, e
 
+def collate_double(batch):
+    """
+    collate function for the ObjectDetectionDataSet.
+    Only used by the dataloader.
+    """
+    x = [sample['x'] for sample in batch]
+    y = [sample['y'] for sample in batch]
+    x_name = [sample['x_name'] for sample in batch]
+    y_name = [sample['y_name'] for sample in batch]
+    return x, y, x_name, y_name
+
+def pytorch_normalze(img):
+    """
+    https://github.com/pytorch/vision/issues/223
+    return appr -1~1 RGB
+    """
+    normalize = tvtsf.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225])
+    img = normalize(torch.from_numpy(img))
+    return img.numpy()
+
+def resize_bbox(bbox, in_size, out_size):
+    """Resize bounding boxes according to image resize.
+    The bounding boxes are expected to be packed into a two dimensional
+    tensor of shape :math:`(R, 4)`, where :math:`R` is the number of
+    bounding boxes in the image. The second axis represents attributes of
+    the bounding box. They are :math:`(y_{min}, x_{min}, y_{max}, x_{max})`,
+    where the four attributes are coordinates of the top left and the
+    bottom right vertices.
+    Args:
+        bbox (~numpy.ndarray): An array whose shape is :math:`(R, 4)`.
+            :math:`R` is the number of bounding boxes.
+        in_size (tuple): A tuple of length 2. The height and the width
+            of the image before resized.
+        out_size (tuple): A tuple of length 2. The height and the width
+            of the image after resized.
+    Returns:
+        ~numpy.ndarray:
+        Bounding boxes rescaled according to the given image shapes.
+    """
+    bbox = bbox.copy()
+    y_scale = float(out_size[0]) / in_size[0]
+    x_scale = float(out_size[1]) / in_size[1]
+    bbox[0] = x_scale * bbox[0]
+    bbox[1] = y_scale * bbox[1]
+    bbox[2] = x_scale * bbox[2]
+    bbox[3] = y_scale * bbox[3]
+    return bbox
+
+def preprocess(img, min_size=600, max_size=1000):
+    """Preprocess an image for feature extraction.
+    The length of the shorter edge is scaled to :obj:`self.min_size`.
+    After the scaling, if the length of the longer edge is longer than
+    :param min_size:
+    :obj:`self.max_size`, the image is scaled to fit the longer edge
+    to :obj:`self.max_size`.
+    After resizing the image, the image is subtracted by a mean image value
+    :obj:`self.mean`.
+    Args:
+        img (~numpy.ndarray): An image. This is in CHW and RGB format.
+            The range of its value is :math:`[0, 255]`.
+    Returns:
+        ~numpy.ndarray: A preprocessed image.
+    """
+    C, H, W = img.shape
+    scale1 = min_size / min(H, W)
+    scale2 = max_size / max(H, W)
+    scale = min(scale1, scale2)
+    img = img / 255.
+    img = sktsf.resize(img, (C, H * scale, W * scale), mode='reflect',anti_aliasing=False)
+    # both the longer and shorter should be less than
+    # max_size and min_size
+    normalize = pytorch_normalze
+    return normalize(img)
+
+class Transform(object):
+
+    def __init__(self, min_size=600, max_size=1000):
+        self.min_size = min_size
+        self.max_size = max_size
+
+    def __call__(self, in_data):
+        img, bbox = in_data
+        _, H, W = img.shape
+        img = preprocess(img, self.min_size, self.max_size)
+        _, o_H, o_W = img.shape
+        scale = o_H / H
+        bbox = resize_bbox(bbox, (H, W), (o_H, o_W))
+
+        return img, bbox
+
 class PrepareDataset(torch.utils.data.Dataset):
     def __init__(self,
                  inputs: List[pathlib.Path],
@@ -76,6 +172,7 @@ class PrepareDataset(torch.utils.data.Dataset):
         self.use_cache = use_cache
         self.convert_to_format = convert_to_format
         self.mapping = mapping
+        self.transform = Transform(min_size, max_size)
 
         if self.use_cache:
             # Use multiprocessing to load images and targets into RAM
@@ -97,15 +194,19 @@ class PrepareDataset(torch.utils.data.Dataset):
             xmin,xmax,ymin,ymax,label = self.get_bb(target_ID,x)
 
         bboxes = np.array([xmin,ymin,xmax,ymax])
-        bboxes = torch.from_numpy(bboxes).to(torch.float32)
+        
         y = np.array([label])
 
+        x_trans = np.transpose(x, (2,0,1))
+        x, bboxes = self.transform((x_trans, bboxes))
+        x = np.transpose(x,(1,2,0))
         # Create target
         target = {'boxes': bboxes,
                   'labels': y}
 
         # Convert to tensor
         x = torch.from_numpy(x).type(torch.float32)
+        bboxes = torch.from_numpy(bboxes).to(torch.float32)
         target['labels'] = torch.from_numpy(target['labels']).type(torch.uint8)
 
         return {'x': x, 'y': target, 'x_name': self.inputs[idx], 'y_name': self.targets[idx]}
