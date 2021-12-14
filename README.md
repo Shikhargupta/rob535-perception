@@ -28,7 +28,7 @@ The script `train_voxnet.m` trains a VoxNet point cloud classifier on the point 
 
 Note that there is also a script `train_ppillars.m` which follows the structure of [MATLAB's tutorial](https://www.mathworks.com/help/deeplearning/ug/lidar-object-detection-using-pointpillars-deep-learning.html) on training a PointPillars network. PointPillars requires intensity for training so in this case the RGB images are converted to grayscale and projected onto the point clouds to act as a pseudo-intensity. This script is only included for completeness and was not used for any submission because the trained network did not work well. 
 
-### Classification
+### Point Cloud Classification
 
 VoxNet discretizes and classifies point clouds, it does not determine regions of interest within a larger point cloud. Therefore a number of steps must be taken to identify point cloud clusters to feed into VoxNet. The process to identify clusters is as follows:
 
