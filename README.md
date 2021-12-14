@@ -4,7 +4,7 @@ This is team 2's code base for task 1 of the ROB 535 perception project. We impl
 
 ## Point Cloud Based Method
 
-The code for the point cloud based method is located in `pointcloud_processing`.
+The code for the point cloud based method is located in `pointcloud_processing`. The code was run with MATLAB R2021b and several toolboxes.
 
 ### Helper Functions
 
