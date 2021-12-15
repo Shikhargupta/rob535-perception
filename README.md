@@ -46,4 +46,13 @@ The scripts related to this are as follows:
 - `submit_voxnet.m` runs this classification on the test set and generated a file for submission
 
 ## Image Based Methods
+The python notebook for the Faster RCNN (VGG based) implementation could be found [here](rcnn-rob535.ipynb).
 
+In order to run the script, one needs to have a few packages installed -
+- PyTorch
+- PyTorch Lightning
+- Trochvision
+- Numpy
+- Skimage
+
+It is also required to specify the location of the training data inside the script just before the Datatloader call. The location of the checkpoint also needs to be specified inside the PyTroch Lightning trainer call if the training needs to be resumed.
